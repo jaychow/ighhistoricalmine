@@ -3,6 +3,7 @@ import MySQLdb as _mysql
 from config import ig_config
 from instagram import client
 from instagram.bind import InstagramAPIError
+from multiprocessing import Pool
 
 
 __author__ = 'jaychow'
