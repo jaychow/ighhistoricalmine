@@ -91,6 +91,6 @@ with open(miner.filename, 'r') as f:
             miner.db.addImage(tablename='london_selfie', image=image)
 
         except Exception as e:
-            logging.warning(line + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
+            logging.warning(line.replace("\n", "") + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
 
 

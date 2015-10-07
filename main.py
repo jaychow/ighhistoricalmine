@@ -3,7 +3,9 @@ import MySQLdb as _mysql
 from config import ig_config
 from instagram import client
 from instagram.bind import InstagramAPIError
-from multiprocessing import Pool
+import multiprocessing, sys, logging
+reload(sys)
+sys.setdefaultencoding("utf-8")
 
 
 __author__ = 'jaychow'
@@ -46,9 +48,7 @@ class igMine:
             min_timestamp = min_timestamp
         )
 
-        for media in media_search:
-            print "-----" + str(self.apiCurrent) + ' - entry: ' + media.id + " - " + media.link
-            self.apiCurrent += 1
+        return media_search
 
 
 
@@ -61,11 +61,57 @@ miner = igMine()
 miner.initDB()
 miner.initIg()
 
+def addImage(media):
+    try:
+        miner.db.addImage('london', media)
+    except Exception as e:
+        logging.warning(media.id + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
+    return
+
 while(timeStart > timeEnd):
     try:
         nextTime = timeStart - advInterval
         print str(apiCall) + " - " + str(timeStart)
-        miner.search(max_timestamp = timeStart, min_timestamp = nextTime)
+        media_search = miner.search(max_timestamp = timeStart, min_timestamp = nextTime)
+
+        processList = []
+
+        for media in media_search:
+            print "-----" + str(miner.apiCurrent) + ' - entry: ' + media.id + " - " + media.link
+            miner.apiCurrent += 1
+
+            ids = media.id.split('_')
+
+            lat = 0
+            lon = 0
+            location = 0
+            caption = ""
+            
+            if(hasattr(media, 'location')):
+                lat = media.location.point.latitude
+                lon = media.location.point.longitude
+            if(media.caption is not None):
+                caption = media.caption.text.replace("'", r"\'")
+            image = {
+                'id': ids[0],
+                'type': media.type,
+                'like_count': media.like_count,
+                'caption': caption,
+                'filter': media.filter,
+                'link': media.link,
+                'user_id': media.user.id,
+                'username': media.user.username,
+                'created_time': media.created_time,
+                'low_res': media.images['low_resolution'].url,
+                'thumbnail': media.images['thumbnail'].url,
+                'standard_res': media.images['standard_resolution'].url,
+                'lat': lat,
+                'lon': lon
+            }
+
+            p = multiprocessing.Process(target=addImage, args=(image,))
+            processList.append(p)
+            p.start()
         apiCall += 1
         timeStart = nextTime
     except InstagramAPIError as e:
