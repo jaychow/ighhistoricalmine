@@ -1,7 +1,7 @@
 from __future__ import division
 from database import Db
 import MySQLdb as _mysql
-from config import ig_config
+from config import ig_config, location_config
 from instagram import client
 from instagram.bind import InstagramAPIError
 import multiprocessing, sys, logging, time
@@ -21,8 +21,9 @@ class igMine:
     clientLength = 0
 
     #mine var
-    lat = "51.511620"
-    lng = "-0.117492"
+    lat = location_config.lat
+    lng = location_config.lng
+    city = location_config.city
     distance = 5000
 
     def __init__(self):
@@ -68,7 +69,7 @@ miner.initIg()
 
 def addImage(media, tags):
     try:
-        miner.db.addImage('london', media)
+        miner.db.addImage(location_config.city, media)
         for tag in tags:
                 tagId = miner.db.getTagId(tag=tag.name)
                 if(tagId):
@@ -84,7 +85,7 @@ def addImage(media, tags):
     return
 
 while(timeStart > timeEnd):
-    elapseTime = time.time()-timeStart
+    elapseTime = time.time()-programStartTime
     try:
         percentDone = (totalCounter/totalIter)*100
         print "Elapse Time:" + elapseTime.__str__()
@@ -136,8 +137,9 @@ while(timeStart > timeEnd):
         totalCounter += 1
         timeStart = nextTime
     except InstagramAPIError as e:
-        logging.warning(timeStart + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
-        if(e.status_code == 429):
+        logging.warning(str(timeStart) + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
+        print e.status_code
+        if(e.status_code == '429'):
             if miner.clientPosition == miner.clientLength-1:
                 miner.clientPosition == 0
             else:
