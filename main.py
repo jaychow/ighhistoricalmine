@@ -1,9 +1,11 @@
+from __future__ import division
 from database import Db
 import MySQLdb as _mysql
 from config import ig_config
 from instagram import client
 from instagram.bind import InstagramAPIError
-import multiprocessing, sys, logging
+import multiprocessing, sys, logging, time
+
 reload(sys)
 sys.setdefaultencoding("utf-8")
 
@@ -51,33 +53,49 @@ class igMine:
         return media_search
 
 
-
+programStartTime = time.time()
 timeStart = 1443398400
 timeEnd = 1442793600
 advInterval = 60
 apiCall = 0
+totalIter = (timeStart-timeEnd)/advInterval
+totalCounter = 0
+
 
 miner = igMine()
 miner.initDB()
 miner.initIg()
 
-def addImage(media):
+def addImage(media, tags):
     try:
         miner.db.addImage('london', media)
+        for tag in tags:
+                tagId = miner.db.getTagId(tag=tag.name)
+                if(tagId):
+                    if(not miner.db.tagRelationExists(tagId, media['id'])):
+                        miner.db.addTagRelation(tagId, media['id'])
+                else:
+                    tagId = miner.db.addTag(tag.name)
+                    if(not miner.db.tagRelationExists(tagId, media['id'])):
+                        miner.db.addTagRelation(tagId, media['id'])
     except Exception as e:
-        logging.warning(media.id + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
+        logging.warning(media['id'] + " - " + str(e))
+
     return
 
 while(timeStart > timeEnd):
+    elapseTime = time.time()-timeStart
     try:
+        percentDone = (totalCounter/totalIter)*100
+        print "Elapse Time:" + elapseTime.__str__()
+        print str(percentDone) + "%.... - " + str(apiCall) + " - " + str(timeStart)
         nextTime = timeStart - advInterval
-        print str(apiCall) + " - " + str(timeStart)
         media_search = miner.search(max_timestamp = timeStart, min_timestamp = nextTime)
 
         processList = []
 
         for media in media_search:
-            print "-----" + str(miner.apiCurrent) + ' - entry: ' + media.id + " - " + media.link
+            #print "-----" + str(miner.apiCurrent) + ' - entry: ' + media.id + " - " + media.link
             miner.apiCurrent += 1
 
             ids = media.id.split('_')
@@ -108,14 +126,23 @@ while(timeStart > timeEnd):
                 'lat': lat,
                 'lon': lon
             }
-
-            p = multiprocessing.Process(target=addImage, args=(image,))
+            '''
+            p = multiprocessing.Process(target=addImage, args=(image,media.tags))
             processList.append(p)
             p.start()
+            '''
+            addImage(image,media.tags)
         apiCall += 1
+        totalCounter += 1
         timeStart = nextTime
     except InstagramAPIError as e:
-        print e.status_code
-        print e.message
+        logging.warning(timeStart + " - " + str(e.status_code) + ": " + e.error_type + " - " + e.error_message)
+        if(e.status_code == 429):
+            if miner.clientPosition == miner.clientLength-1:
+                miner.clientPosition == 0
+            else:
+                miner.clientPosition += 1
+                miner.initIg()
+
 
 
